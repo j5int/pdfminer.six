@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Restored by Reverting Removal
 - Support for Python 2 ([#346](https://github.com/pdfminer/pdfminer.six/pull/346))
 
+### Added
+- Also accept file-like objects in high level functions `extract_text` and `extract_pages` ([#392](https://github.com/pdfminer/pdfminer.six/pull/392))
+
 ## [20200121] - 2020-01-21
 
 ### Fixed
