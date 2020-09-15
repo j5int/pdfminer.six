@@ -5,6 +5,7 @@
 import re
 import logging
 
+import six
 
 from . import settings
 from .utils import choplist
@@ -32,7 +33,8 @@ class PSValueError(PSException):
     pass
 
 
-class PSObject:
+class PSObject(object):
+
     """Base class for all PS or PDF-related data types."""
 
     pass
@@ -80,7 +82,8 @@ class PSKeyword(PSObject):
         return '/%r' % name
 
 
-class PSSymbolTable:
+class PSSymbolTable(object):
+
     """A utility class for storing PSLiteral/PSKeyword objects.
 
     Interned objects can be checked its identity with "is" operator.
@@ -115,15 +118,16 @@ KEYWORD_DICT_END = KWD(b'>>')
 def literal_name(x):
     if not isinstance(x, PSLiteral):
         if settings.STRICT:
-            raise PSTypeError('Literal required: {!r}'.format(x))
+            raise PSTypeError('Literal required: %r' % (x,))
         else:
             name = x
     else:
         name = x.name
-        try:
-            name = str(name, 'utf-8')
-        except Exception:
-            pass
+        if six.PY3:
+            try:
+                name = str(name, 'utf-8')
+            except Exception:
+                pass
     return name
 
 
@@ -134,7 +138,9 @@ def keyword_name(x):
         else:
             name = x
     else:
-        name = str(x.name, 'utf-8', 'ignore')
+        name = x.name
+        if six.PY3:
+            name = str(name, 'utf-8', 'ignore')
     return name
 
 
@@ -161,7 +167,7 @@ ESC_STRING = {
 }
 
 
-class PSBaseParser:
+class PSBaseParser(object):
 
     """Most basic PostScript parser that performs only tokenization.
     """
@@ -363,7 +369,7 @@ class PSBaseParser:
             self.hex += c
             return i+1
         if self.hex:
-            self._curtoken += bytes((int(self.hex, 16),))
+            self._curtoken += six.int2byte(int(self.hex, 16))
         self._parse1 = self._parse_literal
         return i
 
@@ -449,11 +455,11 @@ class PSBaseParser:
             self.oct += c
             return i+1
         if self.oct:
-            self._curtoken += bytes((int(self.oct, 8),))
+            self._curtoken += six.int2byte(int(self.oct, 8))
             self._parse1 = self._parse_string
             return i
         if c in ESC_STRING:
-            self._curtoken += bytes((ESC_STRING[c],))
+            self._curtoken += six.int2byte(ESC_STRING[c])
         self._parse1 = self._parse_string
         return i+1
 
@@ -482,7 +488,7 @@ class PSBaseParser:
             return len(s)
         j = m.start(0)
         self._curtoken += s[i:j]
-        token = HEX_PAIR.sub(lambda m: bytes((int(m.group(0), 16),)),
+        token = HEX_PAIR.sub(lambda m: six.int2byte(int(m.group(0), 16)),
                              SPC.sub(b'', self._curtoken))
         self._add_token(token)
         self._parse1 = self._parse_main
@@ -545,8 +551,7 @@ class PSStackParser(PSBaseParser):
 
     def end_type(self, type):
         if self.curtype != type:
-            raise PSTypeError('Type mismatch: {!r} != {!r}'
-                              .format(self.curtype, type))
+            raise PSTypeError('Type mismatch: %r != %r' % (self.curtype, type))
         objs = [obj for (_, obj) in self.curstack]
         (pos, self.curtype, self.curstack) = self.context.pop()
         log.debug('end_type: pos=%r, type=%r, objs=%r', pos, type, objs)
@@ -565,7 +570,9 @@ class PSStackParser(PSBaseParser):
         """
         while not self.results:
             (pos, token) = self.nexttoken()
-            if isinstance(token, (int, float, bool, str, bytes, PSLiteral)):
+            if isinstance(token, (six.integer_types, float, bool,
+                                  six.string_types, six.binary_type,
+                                  PSLiteral)):
                 # normal token
                 self.push((pos, token))
             elif token == KEYWORD_ARRAY_BEGIN:
@@ -588,8 +595,9 @@ class PSStackParser(PSBaseParser):
                     if len(objs) % 2 != 0:
                         error_msg = 'Invalid dictionary construct: %r' % objs
                         raise PSSyntaxError(error_msg)
-                    d = {literal_name(k): v
-                         for (k, v) in choplist(2, objs) if v is not None}
+                    # construct a Python dictionary.
+                    d = dict((literal_name(k), v)
+                             for (k, v) in choplist(2, objs) if v is not None)
                     self.push((pos, d))
                 except PSTypeError:
                     if settings.STRICT:

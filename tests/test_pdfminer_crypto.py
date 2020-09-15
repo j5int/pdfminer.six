@@ -1,6 +1,7 @@
 """Test of various compression/encoding modules (previously in doctests)
 """
 import binascii
+
 from nose.tools import assert_equal
 
 from pdfminer.arcfour import Arcfour

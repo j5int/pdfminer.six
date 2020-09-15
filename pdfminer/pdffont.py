@@ -3,6 +3,7 @@ import struct
 import sys
 from io import BytesIO
 
+import six
 
 from . import settings
 from .cmapdb import CMap
@@ -74,7 +75,7 @@ def get_widths2(seq):
     return widths
 
 
-class FontMetricsDB:
+class FontMetricsDB(object):
 
     @classmethod
     def get_metrics(cls, fontname):
@@ -190,7 +191,7 @@ def getdict(data):
     return d
 
 
-class CFFFont:
+class CFFFont(object):
 
     STANDARD_STRINGS = (
       '.notdef', 'space', 'exclam', 'quotedbl', 'numbersign',
@@ -273,7 +274,7 @@ class CFFFont:
       'Light', 'Medium', 'Regular', 'Roman', 'Semibold',
     )
 
-    class INDEX:
+    class INDEX(object):
 
         def __init__(self, fp):
             self.fp = fp
@@ -384,7 +385,7 @@ class CFFFont:
         return self.string_index[sid-len(self.STANDARD_STRINGS)]
 
 
-class TrueTypeFont:
+class TrueTypeFont(object):
 
     class CMapNotFound(Exception):
         pass
@@ -469,7 +470,7 @@ class TrueTypeFont:
                 assert False, str(('Unhandled', fmttype))
         # create unicode map
         unicode_map = FileUnicodeMap()
-        for (char, gid) in char2gid.items():
+        for (char, gid) in six.iteritems(char2gid):
             unicode_map.add_cid2unichr(gid, char)
         return unicode_map
 
@@ -486,7 +487,7 @@ LITERAL_STANDARD_ENCODING = LIT('StandardEncoding')
 LITERAL_TYPE1C = LIT('Type1C')
 
 
-class PDFFont:
+class PDFFont(object):
 
     def __init__(self, descriptor, widths, default_width=None):
         self.descriptor = descriptor
@@ -616,7 +617,7 @@ class PDFType1Font(PDFSimpleFont):
             firstchar = int_value(spec.get('FirstChar', 0))
             # lastchar = int_value(spec.get('LastChar', 255))
             widths = list_value(spec.get('Widths', [0]*256))
-            widths = {i+firstchar: w for (i, w) in enumerate(widths)}
+            widths = dict((i+firstchar, w) for (i, w) in enumerate(widths))
         PDFSimpleFont.__init__(self, descriptor, widths, spec)
         if 'Encoding' not in spec and 'FontFile' in descriptor:
             # try to recover the missing encoding info from the font file.
@@ -643,7 +644,7 @@ class PDFType3Font(PDFSimpleFont):
         firstchar = int_value(spec.get('FirstChar', 0))
         # lastchar = int_value(spec.get('LastChar', 0))
         widths = list_value(spec.get('Widths', [0]*256))
-        widths = {i+firstchar: w for (i, w) in enumerate(widths)}
+        widths = dict((i+firstchar, w) for (i, w) in enumerate(widths))
         if 'FontDescriptor' in spec:
             descriptor = dict_value(spec['FontDescriptor'])
         else:
@@ -673,7 +674,7 @@ class PDFCIDFont(PDFFont):
             self.cidsysteminfo.get('Registry', b'unknown')).decode("latin1")
         cid_ordering = resolve1(
             self.cidsysteminfo.get('Ordering', b'unknown')).decode("latin1")
-        self.cidcoding = '{}-{}'.format(cid_registry, cid_ordering)
+        self.cidcoding = '%s-%s' % (cid_registry, cid_ordering)
         self.cmap = self.get_cmap_from_spec(spec, strict)
 
         try:
@@ -709,11 +710,11 @@ class PDFCIDFont(PDFFont):
         if self.vertical:
             # writing mode: vertical
             widths = get_widths2(list_value(spec.get('W2', [])))
-            self.disps = {cid: (vx, vy)
-                          for (cid, (_, (vx, vy))) in widths.items()}
+            self.disps = dict((cid, (vx, vy)) for (cid, (_, (vx, vy)))
+                              in six.iteritems(widths))
             (vy, w) = spec.get('DW2', [880, -1000])
             self.default_disp = (None, vy)
-            widths = {cid: w for (cid, (w, _)) in widths.items()}
+            widths = dict((cid, w) for (cid, (w, _)) in six.iteritems(widths))
             default_width = w
         else:
             # writing mode: horizontal
@@ -755,8 +756,8 @@ class PDFCIDFont(PDFFont):
             return CMap()
 
     def __repr__(self):
-        return '<PDFCIDFont: basefont={!r}, cidcoding={!r}>'\
-            .format(self.basefont, self.cidcoding)
+        return '<PDFCIDFont: basefont=%r, cidcoding=%r>' \
+               % (self.basefont, self.cidcoding)
 
     def is_vertical(self):
         return self.vertical

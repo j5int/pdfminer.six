@@ -2,25 +2,33 @@
 Miscellaneous Routines.
 """
 import struct
-from html import escape
 
-import chardet  # For str encoding detection
+import six
+from html import escape
 
 # from sys import maxint as INF doesn't work anymore under Python3, but PDF
 # still uses 32 bits ints
 INF = (1 << 31) - 1
 
+if six.PY3:
+    import chardet  # For str encoding detection in Py3
+
+    unicode = str
+
 
 def make_compat_bytes(in_str):
-    "Converts to bytes, encoding to unicode."
+    """In Py2, does nothing. In Py3, converts to bytes, encoding to unicode."""
     assert isinstance(in_str, str), str(type(in_str))
-    return in_str.encode()
+    if six.PY2:
+        return in_str
+    else:
+        return in_str.encode()
 
 
 def make_compat_str(in_str):
-    """Converts to string, guessing encoding."""
-    assert isinstance(in_str, (bytes, str)), str(type(in_str))
-    if isinstance(in_str, bytes):
+    """In Py2, does nothing. In Py3, converts to string, guessing encoding."""
+    assert isinstance(in_str, (bytes, str, unicode)), str(type(in_str))
+    if six.PY3 and isinstance(in_str, bytes):
         enc = chardet.detect(in_str)
         in_str = in_str.decode(enc['encoding'])
     return in_str
@@ -42,10 +50,15 @@ def compatible_encode_method(bytesorstring, encoding='utf-8',
 
      This does either.
      """
-    if isinstance(bytesorstring, str):
-        return bytesorstring
-    assert isinstance(bytesorstring, bytes), str(type(bytesorstring))
-    return bytesorstring.decode(encoding, erraction)
+    if six.PY2:
+        error_msg = str(type(bytesorstring))
+        assert isinstance(bytesorstring, (str, unicode)), error_msg
+        return bytesorstring.encode(encoding, erraction)
+    if six.PY3:
+        if isinstance(bytesorstring, str):
+            return bytesorstring
+        assert isinstance(bytesorstring, bytes), str(type(bytesorstring))
+        return bytesorstring.decode(encoding, erraction)
 
 
 def apply_png_predictor(pred, colors, columns, bitspercomponent, data):
@@ -58,6 +71,8 @@ def apply_png_predictor(pred, colors, columns, bitspercomponent, data):
     line0 = b'\x00' * columns
     for i in range(0, len(data), nbytes + 1):
         ft = data[i]
+        if six.PY2:
+            ft = six.byte2int(ft)
         i += 1
         line1 = data[i:i + nbytes]
         line2 = b''
@@ -68,19 +83,25 @@ def apply_png_predictor(pred, colors, columns, bitspercomponent, data):
             # PNG sub (UNTESTED)
             c = 0
             for b in line1:
+                if six.PY2:
+                    b = six.byte2int(b)
                 c = (c + b) & 255
-                line2 += bytes((c,))
+                line2 += six.int2byte(c)
         elif ft == 2:
             # PNG up
             for (a, b) in zip(line0, line1):
+                if six.PY2:
+                    a, b = six.byte2int(a), six.byte2int(b)
                 c = (a + b) & 255
-                line2 += bytes((c,))
+                line2 += six.int2byte(c)
         elif ft == 3:
             # PNG average (UNTESTED)
             c = 0
             for (a, b) in zip(line0, line1):
+                if six.PY2:
+                    a, b = six.byte2int(a), six.byte2int(b)
                 c = ((c + a + b) // 2) & 255
-                line2 += bytes((c,))
+                line2 += six.int2byte(c)
         else:
             # unsupported
             raise ValueError("Unsupported predictor value: %d" % ft)
@@ -126,7 +147,7 @@ def apply_matrix_norm(m, v):
 #  Utility functions
 
 def isnumber(x):
-    return isinstance(x, (int, float))
+    return isinstance(x, (six.integer_types, float))
 
 
 def uniq(objs):
@@ -208,7 +229,7 @@ def nunpack(s, default=0):
         raise TypeError('invalid length: %d' % length)
 
 
-PDFDocEncoding = ''.join(chr(x) for x in (
+PDFDocEncoding = ''.join(six.unichr(x) for x in (
     0x0000, 0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0006, 0x0007,
     0x0008, 0x0009, 0x000a, 0x000b, 0x000c, 0x000d, 0x000e, 0x000f,
     0x0010, 0x0011, 0x0012, 0x0013, 0x0014, 0x0015, 0x0017, 0x0017,
@@ -247,27 +268,26 @@ PDFDocEncoding = ''.join(chr(x) for x in (
 def decode_text(s):
     """Decodes a PDFDocEncoding string to Unicode."""
     if s.startswith(b'\xfe\xff'):
-        return str(s[2:], 'utf-16be', 'ignore')
+        return six.text_type(s[2:], 'utf-16be', 'ignore')
     else:
         return ''.join(PDFDocEncoding[c] for c in s)
 
 
 def enc(x):
     """Encodes a string for SGML/XML/HTML"""
-    if isinstance(x, bytes):
+    if six.PY3 and isinstance(x, bytes):
         return ''
     return escape(x)
 
 
 def bbox2str(bbox):
     (x0, y0, x1, y1) = bbox
-    return '{:.3f},{:.3f},{:.3f},{:.3f}'.format(x0, y0, x1, y1)
+    return '%.3f,%.3f,%.3f,%.3f' % (x0, y0, x1, y1)
 
 
 def matrix2str(m):
     (a, b, c, d, e, f) = m
-    return '[{:.2f},{:.2f},{:.2f},{:.2f}, ({:.2f},{:.2f})]'\
-        .format(a, b, c, d, e, f)
+    return '[%.2f,%.2f,%.2f,%.2f, (%.2f,%.2f)]' % (a, b, c, d, e, f)
 
 
 def vecBetweenBoxes(obj1, obj2):
@@ -296,7 +316,7 @@ def vecBetweenBoxes(obj1, obj2):
         return max(0, iw), max(0, ih)
 
 
-class Plane:
+class Plane(object):
     """A set-like data structure for objects placed on a plane.
 
     Can efficiently find objects in a certain rectangular area.

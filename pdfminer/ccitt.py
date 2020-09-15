@@ -1,3 +1,4 @@
+
 # CCITT Fax decoder
 #
 # Bugs: uncompressed mode untested.
@@ -14,12 +15,20 @@
 import sys
 import array
 
+import six  # Python 2+3 compatibility
 
-def get_bytes(data):
-    yield from data
+if six.PY3:
+    def get_bytes(data):
+        for byte in data:
+            yield byte
+else:
+    def get_bytes(data):
+        for char in data:
+            yield ord(char)
 
 
-class BitParser:
+class BitParser(object):
+
     def __init__(self):
         self._pos = 0
         return

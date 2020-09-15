@@ -13,7 +13,10 @@ import sys
 import os
 import os.path
 import gzip
-import pickle as pickle
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle as pickle
 import struct
 import logging
 from .psparser import PSStackParser
@@ -26,6 +29,7 @@ from .encodingdb import name2unicode
 from .utils import choplist
 from .utils import nunpack
 
+import six
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +38,7 @@ class CMapError(Exception):
     pass
 
 
-class CMapBase:
+class CMapBase(object):
 
     debug = 0
 
@@ -73,7 +77,7 @@ class CMap(CMapBase):
         assert isinstance(cmap, CMap), str(type(cmap))
 
         def copy(dst, src):
-            for (k, v) in src.items():
+            for (k, v) in six.iteritems(src):
                 if isinstance(v, dict):
                     d = {}
                     dst[k] = d
@@ -86,7 +90,7 @@ class CMap(CMapBase):
     def decode(self, code):
         log.debug('decode: %r, %r', self, code)
         d = self.code2cid
-        for i in iter(code):
+        for i in six.iterbytes(code):
             if i in d:
                 d = d[i]
                 if isinstance(d, int):
@@ -100,7 +104,7 @@ class CMap(CMapBase):
         if code2cid is None:
             code2cid = self.code2cid
             code = ()
-        for (k, v) in sorted(code2cid.items()):
+        for (k, v) in sorted(six.iteritems(code2cid)):
             c = code+(k,)
             if isinstance(v, int):
                 out.write('code %r = cid %d\n' % (c, v))
@@ -144,7 +148,7 @@ class UnicodeMap(CMapBase):
         return self.cid2unichr[cid]
 
     def dump(self, out=sys.stdout):
-        for (k, v) in sorted(self.cid2unichr.items()):
+        for (k, v) in sorted(six.iteritems(self.cid2unichr)):
             out.write('cid %d = unicode %r\n' % (k, v))
         return
 
@@ -179,7 +183,7 @@ class FileUnicodeMap(UnicodeMap):
             # Interpret as UTF-16BE.
             self.cid2unichr[cid] = code.decode('UTF-16BE', 'ignore')
         elif isinstance(code, int):
-            self.cid2unichr[cid] = chr(code)
+            self.cid2unichr[cid] = six.unichr(code)
         else:
             raise TypeError(code)
         return
@@ -207,7 +211,7 @@ class PyUnicodeMap(UnicodeMap):
         return
 
 
-class CMapDB:
+class CMapDB(object):
 
     _cmap_cache = {}
     _umap_cache = {}

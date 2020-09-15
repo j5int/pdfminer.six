@@ -1,3 +1,4 @@
+
 import logging
 from . import settings
 from .psparser import LIT
@@ -10,6 +11,7 @@ from .pdfparser import PDFParser
 from .pdfdocument import PDFDocument
 from .pdfdocument import PDFTextExtractionNotAllowed
 
+import six
 
 log = logging.getLogger(__name__)
 
@@ -18,7 +20,8 @@ LITERAL_PAGE = LIT('Page')
 LITERAL_PAGES = LIT('Pages')
 
 
-class PDFPage:
+class PDFPage(object):
+
     """An object that holds the information about a page.
 
     A PDFPage object is merely a convenience class that has a set
@@ -69,10 +72,10 @@ class PDFPage:
         return
 
     def __repr__(self):
-        return '<PDFPage: Resources={!r}, MediaBox={!r}>'\
-            .format(self.resources, self.mediabox)
+        return '<PDFPage: Resources=%r, MediaBox=%r>' % \
+               (self.resources, self.mediabox)
 
-    INHERITABLE_ATTRS = {'Resources', 'MediaBox', 'CropBox', 'Rotate'}
+    INHERITABLE_ATTRS = set(['Resources', 'MediaBox', 'CropBox', 'Rotate'])
 
     @classmethod
     def create_pages(cls, document):
@@ -83,7 +86,7 @@ class PDFPage:
             else:
                 objid = obj.objid
                 tree = dict_value(obj).copy()
-            for (k, v) in parent.items():
+            for (k, v) in six.iteritems(parent):
                 if k in cls.INHERITABLE_ATTRS and k not in tree:
                     tree[k] = v
 
@@ -94,7 +97,8 @@ class PDFPage:
             if tree_type is LITERAL_PAGES and 'Kids' in tree:
                 log.info('Pages: Kids=%r', tree['Kids'])
                 for c in list_value(tree['Kids']):
-                    yield from search(c, tree)
+                    for x in search(c, tree):
+                        yield x
             elif tree_type is LITERAL_PAGE:
                 log.info('Page: %r', tree)
                 yield (objid, tree)

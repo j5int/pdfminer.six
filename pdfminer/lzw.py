@@ -1,4 +1,6 @@
+
 from io import BytesIO
+import six
 import logging
 
 
@@ -9,7 +11,7 @@ class CorruptDataError(Exception):
     pass
 
 
-class LZWDecoder:
+class LZWDecoder(object):
 
     def __init__(self, fp):
         self.fp = fp
@@ -48,7 +50,7 @@ class LZWDecoder:
     def feed(self, code):
         x = b''
         if code == 256:
-            self.table = [bytes((c,)) for c in range(256)]  # 0-255
+            self.table = [six.int2byte(c) for c in range(256)]  # 0-255
             self.table.append(None)  # 256
             self.table.append(None)  # 257
             self.prevbuf = b''

@@ -1,9 +1,12 @@
+
 #
 # RunLength decoder (Adobe version) implementation based on PDF Reference
 # version 1.4 section 3.3.4.
 #
 #  * public domain *
 #
+
+import six
 
 
 def rldecode(data):
@@ -23,18 +26,15 @@ def rldecode(data):
     decoded = b''
     i = 0
     while i < len(data):
-        length = data[i]
+        length = six.indexbytes(data, i)
         if length == 128:
             break
-
         if length >= 0 and length < 128:
             for j in range(i+1, (i+1)+(length+1)):
-                decoded += bytes((data[j],))
+                decoded += six.int2byte(six.indexbytes(data, j))
             i = (i+1) + (length+1)
-
         if length > 128:
-            run = bytes((data[i+1],))*(257-length)
+            run = six.int2byte(six.indexbytes(data, i+1))*(257-length)
             decoded += run
             i = (i+1) + 1
-
     return decoded

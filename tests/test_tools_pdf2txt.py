@@ -10,10 +10,10 @@ def run(sample_path, options=None):
     absolute_path = absolute_sample_path(sample_path)
     with NamedTemporaryFile() as output_file:
         if options:
-            s = 'pdf2txt -o{} {} {}' \
-                .format(output_file.name, options, absolute_path)
+            s = 'pdf2txt -o %s %s %s' % (output_file.name,
+                                         options, absolute_path)
         else:
-            s = 'pdf2txt -o{} {}'.format(output_file.name, absolute_path)
+            s = 'pdf2txt -o %s %s' % (output_file.name, absolute_path)
         pdf2txt.main(s.split(' ')[1:])
 
 
@@ -72,7 +72,7 @@ class TestPdf2Txt():
         run('contrib/issue-00352-hash-twos-complement.pdf')
 
 
-class TestDumpImages:
+class TestDumpImages(object):
 
     @staticmethod
     def extract_images(input_file):

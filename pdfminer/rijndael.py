@@ -1056,7 +1056,7 @@ def rijndaelDecrypt(rk, nrounds, ciphertext):
 
 
 # decrypt(key, fin, fout, keybits=256)
-class RijndaelDecryptor:
+class RijndaelDecryptor(object):
 
     """
     >>> key = b'00010203050607080a0b0c0d0f101112'.decode('hex')
@@ -1081,7 +1081,7 @@ class RijndaelDecryptor:
 
 
 # encrypt(key, fin, fout, keybits=256)
-class RijndaelEncryptor:
+class RijndaelEncryptor(object):
 
     def __init__(self, key, keybits=256):
         assert len(key) == KEYLENGTH(keybits), \

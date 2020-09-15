@@ -5,7 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-Nothing
+## Restored by Reverting Removal
+- Support for Python 2 ([#346](https://github.com/pdfminer/pdfminer.six/pull/346))
 
 ## [20200121] - 2020-01-21
 

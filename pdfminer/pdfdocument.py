@@ -1,8 +1,13 @@
-import hashlib as md5
-import logging
+
 import re
 import struct
+import logging
 
+import six
+try:
+    import hashlib as md5
+except ImportError:
+    import md5
 try:
     from Crypto.Cipher import ARC4, AES
     from Crypto.Hash import SHA256
@@ -51,7 +56,7 @@ LITERAL_XREF = LIT('XRef')
 LITERAL_CATALOG = LIT('Catalog')
 
 
-class PDFBaseXRef:
+class PDFBaseXRef(object):
 
     def get_trailer(self):
         raise NotImplementedError
@@ -91,14 +96,15 @@ class PDFXRef(PDFBaseXRef):
                 break
             f = line.strip().split(b' ')
             if len(f) != 2:
-                error_msg = 'Trailer not found: {!r}: line={!r}'\
-                    .format(parser, line)
+                error_msg = 'Trailer not found: %r: line=%r' % (parser, line)
                 raise PDFNoValidXRef(error_msg)
             try:
-                (start, nobjs) = map(int, f)
+                if six.PY2:
+                    (start, nobjs) = map(long, f)  # noqa F821
+                else:
+                    (start, nobjs) = map(int, f)
             except ValueError:
-                error_msg = 'Invalid line: {!r}: line={!r}'\
-                    .format(parser, line)
+                error_msg = 'Invalid line: %r: line=%r' % (parser, line)
                 raise PDFNoValidXRef(error_msg)
             for objid in range(start, start+nobjs):
                 try:
@@ -107,13 +113,17 @@ class PDFXRef(PDFBaseXRef):
                     raise PDFNoValidXRef('Unexpected EOF - file corrupted?')
                 f = line.strip().split(b' ')
                 if len(f) != 3:
-                    error_msg = 'Invalid XRef format: {!r}, line={!r}'\
-                        .format(parser, line)
+                    error_msg = 'Invalid XRef format: %r, line=%r' \
+                                % (parser, line)
                     raise PDFNoValidXRef(error_msg)
                 (pos, genno, use) = f
                 if use != b'n':
                     continue
-                self.offsets[objid] = (None, int(pos), int(genno))
+                if six.PY2:
+                    position = long(pos)  # noqa F821
+                else:
+                    position = int(pos)
+                self.offsets[objid] = None, position, int(genno)
         log.info('xref objects: %r', self.offsets)
         self.load_trailer(parser)
         return
@@ -136,7 +146,7 @@ class PDFXRef(PDFBaseXRef):
         return self.trailer
 
     def get_objids(self):
-        return self.offsets.keys()
+        return six.iterkeys(self.offsets)
 
     def get_pos(self, objid):
         try:
@@ -164,7 +174,8 @@ class PDFXRefFallback(PDFXRef):
                 self.load_trailer(parser)
                 log.info('trailer: %r', self.trailer)
                 break
-            line = line.decode('latin-1')  # default pdf encoding
+            if six.PY3:
+                line = line.decode('latin-1')  # default pdf encoding
             m = self.PDFOBJ_CUE.match(line)
             if not m:
                 continue
@@ -270,7 +281,7 @@ class PDFXRefStream(PDFBaseXRef):
             raise KeyError(objid)
 
 
-class PDFStandardSecurityHandler:
+class PDFStandardSecurityHandler(object):
 
     PASSWORD_PADDING = (b'(\xbfN^Nu\x8aAd\x00NV\xff\xfa\x01\x08'
                         b'..\x00\xb6\xd0h>\x80/\x0c\xa9\xfedSiz')
@@ -325,7 +336,7 @@ class PDFStandardSecurityHandler:
             hash.update(self.docid[0])  # 3
             result = ARC4.new(key).encrypt(hash.digest())  # 4
             for i in range(1, 20):  # 5
-                k = b''.join(bytes((c ^ i,)) for c in iter(key))
+                k = b''.join(six.int2byte(c ^ i) for c in six.iterbytes(key))
                 result = ARC4.new(k).encrypt(result)
             result += result  # 6
             return result
@@ -386,7 +397,7 @@ class PDFStandardSecurityHandler:
         else:
             user_password = self.o
             for i in range(19, -1, -1):
-                k = b''.join(bytes((c ^ i,)) for c in iter(key))
+                k = b''.join(six.int2byte(c ^ i) for c in six.iterbytes(key))
                 user_password = ARC4.new(k).decrypt(user_password)
         return self.authenticate_user_password(user_password)
 
@@ -406,7 +417,7 @@ class PDFStandardSecurityHandlerV4(PDFStandardSecurityHandler):
     supported_revisions = (4,)
 
     def init_params(self):
-        super().init_params()
+        super(PDFStandardSecurityHandlerV4, self).init_params()
         self.length = 128
         self.cf = dict_value(self.param.get('CF'))
         self.stmf = literal_name(self.param['StmF'])
@@ -462,7 +473,7 @@ class PDFStandardSecurityHandlerV5(PDFStandardSecurityHandlerV4):
     supported_revisions = (5,)
 
     def init_params(self):
-        super().init_params()
+        super(PDFStandardSecurityHandlerV5, self).init_params()
         self.length = 256
         self.oe = str_value(self.param['OE'])
         self.ue = str_value(self.param['UE'])
@@ -505,7 +516,7 @@ class PDFStandardSecurityHandlerV5(PDFStandardSecurityHandlerV4):
             .decrypt(data[16:])
 
 
-class PDFDocument:
+class PDFDocument(object):
     """PDFDocument object represents a PDF document.
 
     Since a PDF file can be very big, normally it is not loaded at
@@ -649,8 +660,7 @@ class PDFDocument:
                 objid1 = x[-2]
         # #### end hack around malformed pdf files
         if objid1 != objid:
-            raise PDFSyntaxError('objid mismatch: {!r}={!r}'
-                                 .format(objid1, objid))
+            raise PDFSyntaxError('objid mismatch: %r=%r' % (objid1, objid))
 
         if kwd != KWD(b'obj'):
             raise PDFSyntaxError('Invalid object spec: offset=%r' % pos)
@@ -711,9 +721,11 @@ class PDFDocument:
                     se = entry.get('SE')
                     yield (level, title, dest, action, se)
             if 'First' in entry and 'Last' in entry:
-                yield from search(entry['First'], level+1)
+                for x in search(entry['First'], level+1):
+                    yield x
             if 'Next' in entry:
-                yield from search(entry['Next'], level)
+                for x in search(entry['Next'], level):
+                    yield x
             return
         return search(self.catalog['Outlines'], 0)
 
@@ -771,7 +783,10 @@ class PDFDocument:
         else:
             raise PDFNoValidXRef('Unexpected EOF')
         log.info('xref found: pos=%r', prev)
-        return int(prev)
+        if six.PY2:
+            return long(prev)  # noqa F821
+        else:
+            return int(prev)
 
     # read xref table
     def read_xref_from(self, parser, start, xrefs):

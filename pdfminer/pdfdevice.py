@@ -1,8 +1,12 @@
+# -*- coding: utf-8 -*-
+
+import six
+
 from . import utils
 from .pdffont import PDFUnicodeNotDefined
 
 
-class PDFDevice:
+class PDFDevice(object):
     """Translate the output of PDFPageInterpreter to the output that is needed
     """
 
@@ -144,9 +148,9 @@ class TagExtractor(PDFDevice):
         font = textstate.font
         text = ''
         for obj in seq:
-            if isinstance(obj, str):
+            if isinstance(obj, six.text_type):
                 obj = utils.make_compat_bytes(obj)
-            if not isinstance(obj, bytes):
+            if not isinstance(obj, six.binary_type):
                 continue
             chars = font.decode(obj)
             for cid in chars:
@@ -173,9 +177,9 @@ class TagExtractor(PDFDevice):
     def begin_tag(self, tag, props=None):
         s = ''
         if isinstance(props, dict):
-            s = ''.join(' {}="{}"'.format(utils.enc(k), utils.enc(str(v)))
-                        for (k, v) in sorted(props.items()))
-        out_s = '<{}{}>'.format(utils.enc(tag.name), s)
+            s = ''.join(' %s="%s"' % (utils.enc(k), utils.enc(str(v)))
+                        for (k, v) in sorted(six.iteritems(props)))
+        out_s = '<%s%s>' % (utils.enc(tag.name), s)
         self.outfp.write(utils.make_compat_bytes(out_s))
         self._stack.append(tag)
         return

@@ -13,7 +13,7 @@ from .utils import uniq
 logger = logging.getLogger(__name__)
 
 
-class IndexAssigner:
+class IndexAssigner(object):
 
     def __init__(self, index=0):
         self.index = index
@@ -29,7 +29,7 @@ class IndexAssigner:
         return
 
 
-class LAParams:
+class LAParams(object):
     """Parameters for layout analysis
 
     :param line_overlap: If two characters have more overlap than this they
@@ -81,7 +81,7 @@ class LAParams:
                 self.all_texts)
 
 
-class LTItem:
+class LTItem(object):
     """Interface for things that can be analyzed"""
 
     def analyze(self, laparams):
@@ -89,7 +89,7 @@ class LTItem:
         return
 
 
-class LTText:
+class LTText(object):
     """Interface for things that have text"""
 
     def __repr__(self):

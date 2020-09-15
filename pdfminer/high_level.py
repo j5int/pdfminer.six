@@ -2,7 +2,8 @@
 
 import logging
 import sys
-from io import StringIO
+
+import six
 
 from .converter import XMLConverter, HTMLConverter, TextConverter, \
     PDFPageAggregator
@@ -11,6 +12,12 @@ from .layout import LAParams
 from .pdfdevice import TagExtractor
 from .pdfinterp import PDFResourceManager, PDFPageInterpreter
 from .pdfpage import PDFPage
+
+# Conditional import because python 2 is stupid
+if sys.version_info > (3, 0):
+    from io import StringIO
+else:
+    from io import BytesIO as StringIO
 
 
 def extract_text_to_fp(inf, outfp, output_type='text', codec='utf-8',
@@ -47,8 +54,18 @@ def extract_text_to_fp(inf, outfp, output_type='text', codec='utf-8',
     :return: nothing, acting as it does on two streams. Use StringIO to get
         strings.
     """
+    if '_py2_no_more_posargs' in kwargs is not None:
+        raise DeprecationWarning(
+            'The `_py2_no_more_posargs will be removed on January, 2020. At '
+            'that moment pdfminer.six will stop supporting Python 2. Please '
+            'upgrade to Python 3. For more information see '
+            'https://github.com/pdfminer/pdfminer .six/issues/194')
+
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
+
+    if six.PY2 and sys.stdin.encoding:
+        password = password.decode(sys.stdin.encoding)
 
     imagewriter = None
     if output_dir:
@@ -60,7 +77,7 @@ def extract_text_to_fp(inf, outfp, output_type='text', codec='utf-8',
         device = TextConverter(rsrcmgr, outfp, codec=codec, laparams=laparams,
                                imagewriter=imagewriter)
 
-    if outfp == sys.stdout:
+    if six.PY3 and outfp == sys.stdout:
         outfp = sys.stdout.buffer
 
     if output_type == 'xml':

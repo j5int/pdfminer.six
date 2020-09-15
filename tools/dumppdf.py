@@ -5,6 +5,8 @@ import re
 import sys
 from argparse import ArgumentParser
 
+import six
+
 from pdfminer.pdfdocument import PDFDocument, PDFNoOutlines
 from pdfminer.pdfpage import PDFPage
 from pdfminer.pdfparser import PDFParser
@@ -19,7 +21,7 @@ ESC_PAT = re.compile(r'[\000-\037&<>()"\042\047\134\177-\377]')
 
 
 def e(s):
-    if isinstance(s, bytes):
+    if six.PY3 and isinstance(s, six.binary_type):
         s = str(s, 'latin-1')
     return ESC_PAT.sub(lambda m: '&#%d;' % ord(m.group(0)), s)
 
@@ -31,7 +33,7 @@ def dumpxml(out, obj, codec=None):
 
     if isinstance(obj, dict):
         out.write('<dict size="%d">\n' % len(obj))
-        for (k, v) in obj.items():
+        for (k, v) in six.iteritems(obj):
             out.write('<key>%s</key>\n' % k)
             out.write('<value>')
             dumpxml(out, v)
@@ -47,7 +49,7 @@ def dumpxml(out, obj, codec=None):
         out.write('</list>')
         return
 
-    if isinstance(obj, ((str,), bytes)):
+    if isinstance(obj, (six.string_types, six.binary_type)):
         out.write('<string size="%d">%s</string>' % (len(obj), e(obj)))
         return
 
@@ -120,8 +122,8 @@ def dumpoutline(outfp, fname, objids, pagenos, password='',
     fp = open(fname, 'rb')
     parser = PDFParser(fp)
     doc = PDFDocument(parser, password)
-    pages = {page.pageid: pageno for (pageno, page)
-             in enumerate(PDFPage.create_pages(doc), 1)}
+    pages = dict((page.pageid, pageno) for (pageno, page)
+                 in enumerate(PDFPage.create_pages(doc), 1))
 
     def resolve_dest(dest):
         if isinstance(dest, str):
@@ -151,7 +153,7 @@ def dumpoutline(outfp, fname, objids, pagenos, password='',
                         dest = resolve_dest(action['D'])
                         pageno = pages[dest[0].objid]
             s = e(title).encode('utf-8', 'xmlcharrefreplace')
-            outfp.write('<outline level="{!r}" title="{}">\n'.format(level, s))
+            outfp.write('<outline level="%r" title="%s">\n' % (level, s))
             if dest is not None:
                 outfp.write('<dest>')
                 dumpxml(outfp, dest)
@@ -318,6 +320,8 @@ def main(argv=None):
         pagenos = set()
 
     password = args.password
+    if six.PY2 and sys.stdin.encoding:
+        password = password.decode(sys.stdin.encoding)
 
     if args.raw_stream:
         codec = 'raw'

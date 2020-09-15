@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import logging
 import re
 import sys
@@ -22,6 +23,7 @@ from .utils import enc
 from .utils import bbox2str
 from . import utils
 
+import six
 
 log = logging.getLogger(__name__)
 
@@ -113,7 +115,7 @@ class PDFLayoutAnalyzer(PDFTextDevice):
                     graphicstate):
         try:
             text = font.to_unichr(cid)
-            assert isinstance(text, str), str(type(text))
+            assert isinstance(text, six.text_type), str(type(text))
         except PDFUnicodeNotDefined:
             text = self.handle_undefined_char(font, cid)
         textwidth = font.char_width(cid)
@@ -166,7 +168,7 @@ class PDFConverter(PDFLayoutAnalyzer):
                 self.outfp_binary = False
             else:
                 try:
-                    self.outfp.write("é")
+                    self.outfp.write(u"é")
                     self.outfp_binary = False
                 except TypeError:
                     self.outfp_binary = True
@@ -184,7 +186,7 @@ class TextConverter(PDFConverter):
 
     def write_text(self, text):
         text = utils.compatible_encode_method(text, self.codec, 'ignore')
-        if self.outfp_binary:
+        if six.PY3 and self.outfp_binary:
             text = text.encode()
         self.outfp.write(text)
         return
@@ -283,7 +285,7 @@ class HTMLConverter(PDFConverter):
         return
 
     def write_footer(self):
-        page_links = ['<a href="#{}">{}</a>'.format(i, i)
+        page_links = ['<a href="#%s">%s</a>' % (i, i)
                       for i in range(1, self.pageno)]
         s = '<div style="position:absolute; top:0px;">Page: %s</div>\n' % \
             ', '.join(page_links)
@@ -386,8 +388,8 @@ class HTMLConverter(PDFConverter):
                 if self.showpageno:
                     self.write('<div style="position:absolute; top:%dpx;">' %
                                ((self._yoffset-item.y1)*self.scale))
-                    self.write('<a name="{}">Page {}</a></div>\n'
-                               .format(item.pageid, item.pageid))
+                    self.write('<a name="%s">Page %s</a></div>\n' % (
+                        item.pageid, item.pageid))
                 for child in item:
                     render(child)
                 if item.groups is not None:
@@ -450,7 +452,7 @@ class HTMLConverter(PDFConverter):
 
 class XMLConverter(PDFConverter):
 
-    CONTROL = re.compile('[\x00-\x08\x0b-\x0c\x0e-\x1f]')
+    CONTROL = re.compile(u'[\x00-\x08\x0b-\x0c\x0e-\x1f]')
 
     def __init__(self, rsrcmgr, outfp, codec='utf-8', pageno=1, laparams=None,
                  imagewriter=None, stripcontrol=False):
@@ -481,7 +483,7 @@ class XMLConverter(PDFConverter):
 
     def write_text(self, text):
         if self.stripcontrol:
-            text = self.CONTROL.sub('', text)
+            text = self.CONTROL.sub(u'', text)
         self.write(enc(text))
         return
 
